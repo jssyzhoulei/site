@@ -189,12 +189,12 @@ class Building(db.Model, BaseMixIn):
             connect_building_floor_uuid_list = []
             connects = (
                 session
-                    .query(BuildingFloorConnector)
-                    .filter(BuildingFloorConnector.is_delete == 0)
-                    .filter(
-                    # 只查主关联侧
-                    BuildingFloorConnector.floor_uuid_1 == uuid.UUID(floor_uuid),
-                    # BuildingFloorConnector.floor_uuid_2 == uuid.UUID(floor_uuid),
+                .query(BuildingFloorConnector)
+                .filter(BuildingFloorConnector.is_delete == 0)
+                .filter(
+                # 只查主关联侧
+                BuildingFloorConnector.floor_uuid_1 == uuid.UUID(floor_uuid),
+                # BuildingFloorConnector.floor_uuid_2 == uuid.UUID(floor_uuid),
                 )
             ).all()
             for c in connects:
@@ -204,10 +204,10 @@ class Building(db.Model, BaseMixIn):
 
         query = (
             session
-                .query(BuildingFloor)
-                .filter(BuildingFloor.building_uuid == self.uuid)
-                .order_by(BuildingFloor.created_at)
-                .all()
+            .query(BuildingFloor)
+            .filter(BuildingFloor.building_uuid == self.uuid)
+            .order_by(BuildingFloor.create_time)
+            .all()
         )
         bfloors = {str(floor.uuid): floor for floor in query}
 
@@ -244,9 +244,9 @@ class Building(db.Model, BaseMixIn):
         """
         query = (
             session
-                .query(Elevator)
-                .filter(Elevator.building_uuid == self.uuid)
-                .all()
+            .query(Elevator)
+            .filter(Elevator.building_uuid == self.uuid)
+            .all()
         )
 
         belevators = {str(elevator.uuid): elevator for elevator in query}
@@ -272,11 +272,11 @@ class Building(db.Model, BaseMixIn):
         """
         query = (
             session
-                .query(SiteGroup)
-                .filter(SiteGroup.building_uuid == self.uuid)
-                .filter(SiteGroup.unit_type == unit_type)
-                .order_by(SiteGroup.created_at)
-                .all()
+            .query(SiteGroup)
+            .filter(SiteGroup.building_uuid == self.uuid)
+            .filter(SiteGroup.unit_type == unit_type)
+            .order_by(SiteGroup.create_time)
+            .all()
         )
 
         info = []
@@ -345,9 +345,9 @@ class BuildingFloorConnector(db.Model, BaseMixIn):
         # 但是不允许 floor_uuid_1 floor_uuid_2 关联两次  即使位置不同
         return (
             session
-                .query(cls)
-                .filter(cls.is_delete == 0)
-                .filter(
+            .query(cls)
+            .filter(cls.is_delete == 0)
+            .filter(
                 or_(
                     and_(
                         cls.floor_uuid_1 == floor_uuid_1,
@@ -380,9 +380,9 @@ class Elevator(db.Model, BaseMixIn):
         """
         query = (
             session
-                .query(ElevatorFloor)
-                .filter(ElevatorFloor.elevator_uuid == self.uuid)
-                .all()
+            .query(ElevatorFloor)
+            .filter(ElevatorFloor.elevator_uuid == self.uuid)
+            .all()
         )
         efloors = {str(efloor.uuid): efloor for efloor in query}
         info = []
@@ -465,21 +465,16 @@ class SiteGroup(db.Model, BaseMixIn):
 
         units = (
             session
-                .query(
-                SiteFacilityUnit.facility_uuid,
-                SiteFacilityUnit.unit_uid,
-                SiteFacilityUnit.unit_name,
-                SiteFacilityUnit.unit_uuid,
-            )
-                .filter(SiteFacilityUnit.facility_uuid.in_(self.members))
-                .all()
+            .query(SiteFacilityUnit)
+            .filter(SiteFacilityUnit.facility_uuid.in_(self.members))
+            .all()
         )
         facility_unit_dict = {str(i.facility_uuid): i for i in units}
 
         if cls == FloorFacility:
             query = (
                 session
-                    .query(
+                .query(
                     cls.name,
                     cls.uuid,
                     cls.direction,
@@ -487,9 +482,9 @@ class SiteGroup(db.Model, BaseMixIn):
                     cls.building_uuid,
                     cls.building_floor_uuid,
                 )
-                    .filter(cls.uuid.in_(self.members))
-                    .order_by(cls.created_at)
-                    .all()
+                .filter(cls.uuid.in_(self.members))
+                .order_by(cls.create_time)
+                .all()
             )
 
             return [
@@ -509,10 +504,10 @@ class SiteGroup(db.Model, BaseMixIn):
         if cls == Elevator or cls == Robot:
             query = (
                 session
-                    .query(cls.name, cls.uuid)
-                    .filter(cls.uuid.in_(self.members))
-                    .order_by(cls.created_at)
-                    .all()
+                .query(cls.name, cls.uuid)
+                .filter(cls.uuid.in_(self.members))
+                .order_by(cls.create_time)
+                .all()
             )
             return [
                 {
@@ -612,9 +607,9 @@ class SiteFacilityUnit(db.Model, BaseMixIn):
     def get_site_info(self):
         site_group: SiteGroup = (
             session
-                .query(SiteGroup)
-                .filter(SiteGroup.uuid == self.group_uuid)
-                .first()
+            .query(SiteGroup)
+            .filter(SiteGroup.uuid == self.group_uuid)
+            .first()
         )
         if not site_group:
             # SiteGroupNotFound
@@ -636,10 +631,10 @@ class SiteFacilityUnit(db.Model, BaseMixIn):
     def get_bind_unit_uuid_list(cls, unit_type: int) -> list:
         unit_uuids = (
             session
-                .query(cls.unit_uuid)
-                .filter(cls.unit_type == unit_type)
-                .filter(cls.unit_uuid != None)
-                .all()
+            .query(cls.unit_uuid)
+            .filter(cls.unit_type == unit_type)
+            .filter(cls.unit_uuid != None)
+            .all()
         )
         return [str(i[0]) for i in unit_uuids]
 
