@@ -25,7 +25,7 @@ def import_migrate_models():
         BuildingFloorConnector,
         Elevator,
         ElevatorFloor,
-        Robot
+        Robot,
     )
 
 

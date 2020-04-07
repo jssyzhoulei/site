@@ -10,7 +10,7 @@ from flask import g
 
 
 def get_session():
-    return db.create_scoped_session(options={'autocommit': False, 'autoflush': False})
+    return db.create_scoped_session(options={"autocommit": False, "autoflush": False})
 
 
 session = get_session()
@@ -18,11 +18,17 @@ session = get_session()
 
 class BaseMixIn(object):
     # id = db.Column(db.Integer, primary_key=True)
-    uuid = db.Column(UUID(as_uuid=True), unique=True, default=uuid.uuid4, primary_key=True)
+    uuid = db.Column(
+        UUID(as_uuid=True), unique=True, default=uuid.uuid4, primary_key=True
+    )
     creator_uuid = db.Column(db.String(50), nullable=True)
     creator_ugid = db.Column(db.String(50), nullable=True)
     create_time = db.Column(db.DateTime(), default=datetime.datetime.now)
-    modify_time = db.Column(db.DateTime(), default=lambda: datetime.datetime.now, onupdate=datetime.datetime.now)
+    modify_time = db.Column(
+        db.DateTime(),
+        default=lambda: datetime.datetime.now,
+        onupdate=datetime.datetime.now,
+    )
     meta_info = db.Column(JSONB, nullable=True)
     is_delete = db.Column(db.Integer, nullable=True, default=0)
     version_id = db.Column(db.Integer, nullable=True, default=0)
@@ -30,12 +36,11 @@ class BaseMixIn(object):
     @classmethod
     def gen_version_id(cls, cls_uuid):
         return (
-                       session
-                       .query(func.max(cls.version_id))
-                       .filter(cls.uuid == cls_uuid)
-                       .scalar()
-                       or 0
-               ) + 1
+            session.query(func.max(cls.version_id))
+            .filter(cls.uuid == cls_uuid)
+            .scalar()
+            or 0
+        ) + 1
 
     @classmethod
     def get_by_uuid(cls, cls_uuid):
@@ -45,21 +50,17 @@ class BaseMixIn(object):
     def creator_user(self):
         data = None
         if data:
-            return {'user_id': self.creator_uuid,
-                    'user_name': data['username']}
+            return {"user_id": self.creator_uuid, "user_name": data["username"]}
         else:
-            return {'user_id': self.creator_uuid,
-                    'user_name': ""}
+            return {"user_id": self.creator_uuid, "user_name": ""}
 
     @property
     def creator_group(self):
         data = None
         if data:
-            return {'group_id': self.creator_ugid,
-                    'group_name': data['group_name']}
+            return {"group_id": self.creator_ugid, "group_name": data["group_name"]}
         else:
-            return {'group_id': self.creator_ugid,
-                    'group_name': ""}
+            return {"group_id": self.creator_ugid, "group_name": ""}
 
     def to_dict(self):
         return {c.name: c.type for c in self.__table__.columns}
@@ -189,13 +190,12 @@ class Building(db.Model, BaseMixIn):
         def get_connect_building_floor_uuid(floor_uuid: str):
             connect_building_floor_uuid_list = []
             connects = (
-                session
-                .query(BuildingFloorConnector)
+                session.query(BuildingFloorConnector)
                 .filter(BuildingFloorConnector.is_delete == 0)
                 .filter(
-                # 只查主关联侧
-                BuildingFloorConnector.floor_uuid_1 == uuid.UUID(floor_uuid),
-                # BuildingFloorConnector.floor_uuid_2 == uuid.UUID(floor_uuid),
+                    # 只查主关联侧
+                    BuildingFloorConnector.floor_uuid_1 == uuid.UUID(floor_uuid),
+                    # BuildingFloorConnector.floor_uuid_2 == uuid.UUID(floor_uuid),
                 )
             ).all()
             for c in connects:
@@ -204,8 +204,7 @@ class Building(db.Model, BaseMixIn):
             return connect_building_floor_uuid_list
 
         query = (
-            session
-            .query(BuildingFloor)
+            session.query(BuildingFloor)
             .filter(BuildingFloor.building_uuid == self.uuid)
             .order_by(BuildingFloor.create_time)
             .all()
@@ -244,10 +243,7 @@ class Building(db.Model, BaseMixIn):
         """Keep order based on elevators
         """
         query = (
-            session
-            .query(Elevator)
-            .filter(Elevator.building_uuid == self.uuid)
-            .all()
+            session.query(Elevator).filter(Elevator.building_uuid == self.uuid).all()
         )
 
         belevators = {str(elevator.uuid): elevator for elevator in query}
@@ -272,8 +268,7 @@ class Building(db.Model, BaseMixIn):
         """Keep order based on elevators
         """
         query = (
-            session
-            .query(SiteGroup)
+            session.query(SiteGroup)
             .filter(SiteGroup.building_uuid == self.uuid)
             .filter(SiteGroup.unit_type == unit_type)
             .order_by(SiteGroup.create_time)
@@ -339,14 +334,11 @@ class BuildingFloorConnector(db.Model, BaseMixIn):
     floor_uuid_2 = db.Column(UUID(as_uuid=True))
 
     @classmethod
-    def is_floor_connect_exist(
-            cls, floor_uuid_1, floor_uuid_2
-    ) -> list:
+    def is_floor_connect_exist(cls, floor_uuid_1, floor_uuid_2) -> list:
         # floor_uuid_1 作为主关联侧  floor_uuid_2作为被关联方
         # 但是不允许 floor_uuid_1 floor_uuid_2 关联两次  即使位置不同
         return (
-            session
-            .query(cls)
+            session.query(cls)
             .filter(cls.is_delete == 0)
             .filter(
                 or_(
@@ -380,8 +372,7 @@ class Elevator(db.Model, BaseMixIn):
         :return:
         """
         query = (
-            session
-            .query(ElevatorFloor)
+            session.query(ElevatorFloor)
             .filter(ElevatorFloor.elevator_uuid == self.uuid)
             .all()
         )
@@ -465,8 +456,7 @@ class SiteGroup(db.Model, BaseMixIn):
         # robot 只有name
 
         units = (
-            session
-            .query(SiteFacilityUnit)
+            session.query(SiteFacilityUnit)
             .filter(SiteFacilityUnit.facility_uuid.in_(self.members))
             .all()
         )
@@ -474,8 +464,7 @@ class SiteGroup(db.Model, BaseMixIn):
 
         if cls == FloorFacility:
             query = (
-                session
-                .query(
+                session.query(
                     cls.name,
                     cls.uuid,
                     cls.direction,
@@ -504,8 +493,7 @@ class SiteGroup(db.Model, BaseMixIn):
             ]
         if cls == Elevator or cls == Robot:
             query = (
-                session
-                .query(cls.name, cls.uuid)
+                session.query(cls.name, cls.uuid)
                 .filter(cls.uuid.in_(self.members))
                 .order_by(cls.create_time)
                 .all()
@@ -607,10 +595,7 @@ class SiteFacilityUnit(db.Model, BaseMixIn):
 
     def get_site_info(self):
         site_group: SiteGroup = (
-            session
-            .query(SiteGroup)
-            .filter(SiteGroup.uuid == self.group_uuid)
-            .first()
+            session.query(SiteGroup).filter(SiteGroup.uuid == self.group_uuid).first()
         )
         if not site_group:
             # SiteGroupNotFound
@@ -631,8 +616,7 @@ class SiteFacilityUnit(db.Model, BaseMixIn):
     @classmethod
     def get_bind_unit_uuid_list(cls, unit_type: int) -> list:
         unit_uuids = (
-            session
-            .query(cls.unit_uuid)
+            session.query(cls.unit_uuid)
             .filter(cls.unit_type == unit_type)
             .filter(cls.unit_uuid != None)
             .all()
