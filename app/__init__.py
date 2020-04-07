@@ -15,10 +15,25 @@ def register_site_api(api):
     pass
 
 
+def import_migrate_models():
+    from app.models import (
+        Site,
+        SiteGroup,
+        SiteFacilityUnit,
+        Building,
+        BuildingFloor,
+        BuildingFloorConnector,
+        Elevator,
+        ElevatorFloor,
+        Robot
+    )
+
+
 def create_app(config_name: str):
     # 实例化实现了wsgi接口功能的flask对象
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+    import_migrate_models()
     api = Api(app)
     db.init_app(app)
     register_site_api(api)

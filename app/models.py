@@ -17,7 +17,8 @@ session = get_session()
 
 
 class BaseMixIn(object):
-    uuid = db.Column(UUID(as_uuid=True), unique=True, default=uuid.uuid4)
+    # id = db.Column(db.Integer, primary_key=True)
+    uuid = db.Column(UUID(as_uuid=True), unique=True, default=uuid.uuid4, primary_key=True)
     creator_uuid = db.Column(db.String(50), nullable=True)
     creator_ugid = db.Column(db.String(50), nullable=True)
     create_time = db.Column(db.DateTime(), default=datetime.datetime.now)
@@ -27,7 +28,7 @@ class BaseMixIn(object):
     version_id = db.Column(db.Integer, nullable=True, default=0)
 
     @classmethod
-    def gen_version_id(cls, cls_uuid: uuid.UUID):
+    def gen_version_id(cls, cls_uuid):
         return (
                        session
                        .query(func.max(cls.version_id))
@@ -37,7 +38,7 @@ class BaseMixIn(object):
                ) + 1
 
     @classmethod
-    def get_by_uuid(cls, cls_uuid: uuid.UUID):
+    def get_by_uuid(cls, cls_uuid):
         return session.query(cls).filter(cls.uuid == cls_uuid).scalar()
 
     @property
@@ -339,7 +340,7 @@ class BuildingFloorConnector(db.Model, BaseMixIn):
 
     @classmethod
     def is_floor_connect_exist(
-            cls, floor_uuid_1: uuid.UUID, floor_uuid_2: uuid.UUID
+            cls, floor_uuid_1, floor_uuid_2
     ) -> list:
         # floor_uuid_1 作为主关联侧  floor_uuid_2作为被关联方
         # 但是不允许 floor_uuid_1 floor_uuid_2 关联两次  即使位置不同
@@ -577,7 +578,7 @@ class SiteFacilityUnit(db.Model, BaseMixIn):
     unit_uid = db.Column(db.BigInteger, unique=True, nullable=True)
     unit_name = db.Column(db.String, nullable=True)
 
-    def get_facility_name(self, facility_uuid: uuid.UUID) -> str:
+    def get_facility_name(self, facility_uuid) -> str:
         if self.unit_type == Unit.UNIT_TYPE_ELEVATOR:
             cls = Elevator
         elif self.unit_type == Unit.UNIT_TYPE_ROBOT:
