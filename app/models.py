@@ -18,6 +18,7 @@ session = get_session()
 
 class BaseMixIn(object):
     # id = db.Column(db.Integer, primary_key=True)
+    # todo 建模下未添加字段唯一索引
     uuid = db.Column(
         UUID(as_uuid=True), unique=True, default=uuid.uuid4, primary_key=True
     )
@@ -25,9 +26,7 @@ class BaseMixIn(object):
     creator_ugid = db.Column(db.String(50), nullable=True)
     create_time = db.Column(db.DateTime(), default=datetime.datetime.now)
     modify_time = db.Column(
-        db.DateTime(),
-        default=lambda: datetime.datetime.now,
-        onupdate=datetime.datetime.now,
+        db.DateTime(), default=datetime.datetime.now, onupdate=datetime.datetime.now
     )
     meta_info = db.Column(JSONB, nullable=True)
     is_delete = db.Column(db.Integer, nullable=True, default=0)
