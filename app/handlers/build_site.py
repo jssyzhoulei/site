@@ -37,6 +37,7 @@ from app.models import (
     BuildingFloorConnector,
     Elevator,
     ElevatorFloor,
+    FloorFacility,
     SiteGroup,
     Unit,
     session,
@@ -107,35 +108,32 @@ def bootstrap_site(site: Site):
         if building_uuid:
             # 更新
             building = session.query(Building).get(building_uuid)
+            if building and building_info.get("name"):
+                building.name = building_info.get("name")
         if building is None:
             # 创建building
             building = Building(
-                name=building_info.get("name") or site.name + f"{idx + 1}号楼",
-                address=building_info.get("address"),
+                name=building_info.get("name") or f"{site.name}#{idx + 1}号楼",
+                site_uuid=site.uuid,
             )
             session.add(building)
             session.flush()
 
-        building_floor_count = (
-            session.query(BuildingFloor)
-            .filter(BuildingFloor.building_uuid == building.uuid)
-            .count()
-        )
         # building 内是否需要扩展楼层
         # 羃等 创建时 building_floor_count 为0  更新时不为0
         should_extend_floor = (
-            building_info.get("floor_count") or 0 - building_floor_count
+            building_info.get("floor_count") or 0 - len(building.building_floors)
         )
 
         new_building_floors = []
         if should_extend_floor > 0:
-            for idx1 in range(should_extend_floor):
-                building_floor_name = f"{building_floor_count + idx1 + 1} 楼"
+            for idx in range(should_extend_floor):
+                building_floor_name = f"{len(building.building_floors) + idx + 1} 楼"
                 b_f = _bootstrap_building_floor(
                     site.uuid,
                     building.uuid,
                     building_floor_name,
-                    building_floor_count + idx1 + 1,
+                    len(building.building_floors) + idx + 1,
                 )
                 new_building_floors.append(str(b_f.uuid))
 
@@ -164,7 +162,7 @@ def bootstrap_site(site: Site):
                         ele.uuid,
                         UUID(building_floor_uuid),
                         elevator_floor_name,
-                        building_floor_count + idx1 + 1,
+                        len(building.building_floors) + idx1 + 1,
                     )
                     new_ele_floors.append(str(elevator_floor.uuid))
 
@@ -174,13 +172,10 @@ def bootstrap_site(site: Site):
         building.building_floors = building.building_floors + new_building_floors
         session.flush()
 
-        elevator_count = (
-            session.query(Elevator)
-            .filter(Elevator.building_uuid == building.uuid)
-            .count()
-        )
         # 是否需要扩展电梯
-        should_extend_elevator = building_info.get("floor_count") or 0 - elevator_count
+        should_extend_elevator = (
+            building_info.get("elevator_count") or 0 - len(building.elevators)
+        )
         # 新增电梯略复杂  需要创建电梯组  如果此前已经有电梯组  是否新建或沿用旧的电梯组
         # 这里的策略是创建新的电梯组
         if should_extend_elevator > 0:
@@ -202,16 +197,31 @@ def bootstrap_site(site: Site):
             # elevator floor count == building floor count
             floor_count = len(building.building_floors)
             for idx2 in range(should_extend_elevator):
-                name = f"{idx2+1}号梯"
+                name = f"{building.name}-{ele_name}-{idx2+1}号梯"
                 ele = _bootstrap_elevator(
                     site.uuid, building.uuid, ele_group.uuid, "", name
                 )
                 new_elevators.append(str(ele.uuid))
                 # bootstrap elevator floor
+                new_ele_floors = []
                 for idx3 in range(floor_count):
-                    pass
+                    building_floor_uuid = building.building_floors[idx3]
+                    elevator_floor = _bootstrap_elevator_floor(
+                        site.uuid,
+                        building.uuid,
+                        ele.uuid,
+                        UUID(building_floor_uuid),
+                        "-",
+                        idx3 + 1,
+                    )
+                    new_ele_floors.append(str(elevator_floor.uuid))
+                ele.elevator_floors = new_ele_floors
 
             ele_group.members = new_elevators
+            building.elevators = building.elevators + new_elevators
+            session.flush()
+
+        _bootstrap_floor_facility(site.uuid, building, building_info)
 
 
 def _bootstrap_building_floor(
@@ -293,6 +303,124 @@ def _bootstrap_elevator(
     session.add(elevator)
     session.flush()
     return elevator
+
+
+def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info: dict):
+    # 创建floor facility
+    # elevator robot 以及floor facility 都需要在分组下
+    # 因为这三种设备都需要安装iot板子（robot比较特殊）用来和robot近场通讯
+    # 这里robot并不是真正的机器人  而是robot的坑位  坑位中以后会绑定机器人
+    # 所以此三种facility  放到分组下  并在分组下标识facility的index（类似编号or学号）
+    # robot 交互iot设备的时候通过 group sid + facility index 识别通信设备
+    # 先创建分组 而后创建分组下的facility
+    """
+    {"name": "", "floor_count": 6, "elevator_count": 3,
+                               "station_count": 9, "gate_count": 9, "auto_door_count": 9,
+                               "charger_count": 9}
+    """
+    station_count = building_info.get("station_count") or 0
+    gate_count = building_info.get("gate_count") or 0
+    auto_door_count = building_info.get("auto_door_count") or 0
+    charger_count = building_info.get("charger_count") or 0
+
+    facilities = [
+        Unit.UNIT_TYPE_STATION,
+        Unit.UNIT_TYPE_AUTO_DOOR,
+        Unit.UNIT_TYPE_CHARGER,
+        Unit.UNIT_TYPE_GATE,
+    ]
+    facility_count_map = {
+        Unit.UNIT_TYPE_STATION: station_count,
+        Unit.UNIT_TYPE_AUTO_DOOR: auto_door_count,
+        Unit.UNIT_TYPE_CHARGER: charger_count,
+        Unit.UNIT_TYPE_GATE: gate_count,
+    }
+
+    facility_name_map = {
+        Unit.UNIT_TYPE_STATION: "station",
+        Unit.UNIT_TYPE_AUTO_DOOR: "自动门",
+        Unit.UNIT_TYPE_CHARGER: "充电桩",
+        Unit.UNIT_TYPE_GATE: "闸机",
+    }
+
+    building_facility_map = {
+        Unit.UNIT_TYPE_STATION: building.stations,
+        Unit.UNIT_TYPE_AUTO_DOOR: building.auto_doors,
+        Unit.UNIT_TYPE_CHARGER: building.chargers,
+        Unit.UNIT_TYPE_GATE: building.gates,
+    }
+
+    facility_group_sid = _gen_group_sid(site_uuid)
+    for facility_type in facilities:
+        facility_count_before = (
+            session.query(FloorFacility)
+            .filter(
+                FloorFacility.building_uuid == building.uuid,
+                FloorFacility.unit_type == facility_type,
+            )
+            .count()
+            or 0
+        )
+        should_extend_facility = (
+            facility_count_map[facility_type] - facility_count_before
+        )
+        if should_extend_facility > 0:
+            facility_group_count = (
+                session.query(SiteGroup)
+                .filter(
+                    SiteGroup.building_uuid == building.uuid,
+                    SiteGroup.unit_type == facility_type,
+                )
+                .count()
+                or 0
+            )
+            group_name = f"{building.name}(默认){facility_name_map[facility_type]}组：{facility_group_count + 1}"
+            new_facilities = []
+
+            facility_group = _bootstrap_group(
+                site_uuid,
+                building.uuid,
+                None,
+                group_name,
+                facility_type,
+                facility_group_sid,
+            )
+            session.add(facility_group)
+            session.flush()
+            facility_group_sid += 1
+            facility_uuid_list = []
+            for idx in range(should_extend_facility):
+                facility_name = f"{building.name}{idx+1}#{facility_name_map[facility_type]}号"
+                facility = _new_floor_facility(
+                    site_uuid,
+                    building.uuid,
+                    facility_group.uuid,
+                    facility_type,
+                    facility_name,
+                )
+                facility_uuid_list.append(str(facility.uuid))
+            building_facility_map[facility_type] = (
+                building_facility_map[facility_type] + facility_uuid_list
+            )
+            facility_group.members = new_facilities
+            session.flush()
+
+    return
+
+
+def _new_floor_facility(
+    site_uuid: UUID, building_uuid: UUID, group_uuid: UUID, unit_type: int, name: str
+):
+    facility = FloorFacility(
+        name=name,
+        site_uuid=site_uuid,
+        building_uuid=building_uuid,
+        group_uuid=group_uuid,
+        unit_type=unit_type,
+    )
+    session.add(facility)
+    session.flush()
+    return facility
 
 
 def create_site_json_sanity_check(request: dict):
