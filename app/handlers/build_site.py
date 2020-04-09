@@ -323,12 +323,6 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
     auto_door_count = building_info.get("auto_door_count") or 0
     charger_count = building_info.get("charger_count") or 0
 
-    facilities = [
-        Unit.UNIT_TYPE_STATION,
-        Unit.UNIT_TYPE_AUTO_DOOR,
-        Unit.UNIT_TYPE_CHARGER,
-        Unit.UNIT_TYPE_GATE,
-    ]
     facility_count_map = {
         Unit.UNIT_TYPE_STATION: station_count,
         Unit.UNIT_TYPE_AUTO_DOOR: auto_door_count,
@@ -343,15 +337,8 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
         Unit.UNIT_TYPE_GATE: "闸机",
     }
 
-    building_facility_map = {
-        Unit.UNIT_TYPE_STATION: building.stations,
-        Unit.UNIT_TYPE_AUTO_DOOR: building.auto_doors,
-        Unit.UNIT_TYPE_CHARGER: building.chargers,
-        Unit.UNIT_TYPE_GATE: building.gates,
-    }
-
     facility_group_sid = _gen_group_sid(site_uuid)
-    for facility_type in facilities:
+    for facility_type, facility_count in facility_count_map.items():
         facility_count_before = (
             session.query(FloorFacility)
             .filter(
@@ -362,7 +349,7 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
             or 0
         )
         should_extend_facility = (
-            facility_count_map[facility_type] - facility_count_before
+                facility_count - facility_count_before
         )
         if should_extend_facility > 0:
             facility_group_count = (
@@ -388,7 +375,6 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
             session.add(facility_group)
             session.flush()
             facility_group_sid += 1
-            facility_uuid_list = []
             for idx in range(should_extend_facility):
                 facility_name = (
                     f"{group_name}#{facility_name_map[facility_type]}{idx+1}号"
@@ -400,11 +386,20 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
                     facility_type,
                     facility_name,
                 )
-                facility_uuid_list.append(str(facility.uuid))
-            building_facility_map[facility_type] = (
-                building_facility_map[facility_type] + facility_uuid_list
-            )
+                session.add(facility)
+                session.flush()
+                new_facilities.append(str(facility.uuid))
+
             facility_group.members = new_facilities
+            if facility_type == Unit.UNIT_TYPE_CHARGER:
+                building.chargers = building.chargers + new_facilities
+            elif facility_type == Unit.UNIT_TYPE_AUTO_DOOR:
+                building.auto_doors = building.auto_doors + new_facilities
+            elif facility_type == Unit.UNIT_TYPE_STATION:
+                building.stations = building.stations + new_facilities
+            else:
+                # 注意此处没有判断type  直接使用了else  如果以后新增 facility类型  需要修改
+                building.gates = building.gates + new_facilities
             session.flush()
 
     return
