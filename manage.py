@@ -19,6 +19,12 @@ manager.add_command('db', MigrateCommand)
 manager.add_command("runserver", Server(use_debugger=True))
 
 
+def make_shell_ctx():
+    app_ctx = app.app_context()
+
+    app_ctx.push()
+
+
 @manager.command
 def recreate_db():
     """

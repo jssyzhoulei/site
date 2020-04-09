@@ -121,8 +121,8 @@ def bootstrap_site(site: Site):
 
         # building 内是否需要扩展楼层
         # 羃等 创建时 building_floor_count 为0  更新时不为0
-        should_extend_floor = (
-            building_info.get("floor_count") or 0 - len(building.building_floors)
+        should_extend_floor = building_info.get("floor_count") or 0 - len(
+            building.building_floors
         )
 
         new_building_floors = []
@@ -173,8 +173,8 @@ def bootstrap_site(site: Site):
         session.flush()
 
         # 是否需要扩展电梯
-        should_extend_elevator = (
-            building_info.get("elevator_count") or 0 - len(building.elevators)
+        should_extend_elevator = building_info.get("elevator_count") or 0 - len(
+            building.elevators
         )
         # 新增电梯略复杂  需要创建电梯组  如果此前已经有电梯组  是否新建或沿用旧的电梯组
         # 这里的策略是创建新的电梯组
@@ -390,7 +390,9 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
             facility_group_sid += 1
             facility_uuid_list = []
             for idx in range(should_extend_facility):
-                facility_name = f"{building.name}{idx+1}#{facility_name_map[facility_type]}号"
+                facility_name = (
+                    f"{group_name}#{facility_name_map[facility_type]}{idx+1}号"
+                )
                 facility = _new_floor_facility(
                     site_uuid,
                     building.uuid,
@@ -421,6 +423,45 @@ def _new_floor_facility(
     session.add(facility)
     session.flush()
     return facility
+
+
+def force_cleanup_site(site_uuid: UUID) -> None:
+    logger.warning(f"delete site related rows for site_uuid={str(site_uuid)}")
+
+    session.query(Site).filter(Site.uuid == site_uuid).delete(synchronize_session=False)
+    session.query(Building).filter(Building.site_uuid == site_uuid).delete(
+        synchronize_session=False
+    )
+    session.query(BuildingFloor).filter(BuildingFloor.site_uuid == site_uuid).delete(
+        synchronize_session=False
+    )
+    session.query(BuildingFloorConnector).filter(
+        BuildingFloor.site_uuid == site_uuid
+    ).delete(synchronize_session=False)
+    session.query(FloorFacility).filter(FloorFacility.site_uuid == site_uuid).delete(
+        synchronize_session=False
+    )
+
+    session.query(Elevator).filter(Elevator.site_uuid == site_uuid).delete(
+        synchronize_session=False
+    )
+    session.query(ElevatorFloor).filter(ElevatorFloor.site_uuid == site_uuid).delete(
+        synchronize_session=False
+    )
+    session.query(SiteGroup).filter(SiteGroup.site_uuid == site_uuid).delete(
+        synchronize_session=False
+    )
+    # session.query(SiteFacilityUnit).filter(
+    #     SiteFacilityUnit.site_uuid == site_uuid
+    # ).delete(synchronize_session=False)
+    # session.query(Robot).filter(Robot.site_uuid == site_uuid).delete(synchronize_session=False)
+
+    try:
+        session.commit()
+    except Exception as e:
+        logger.error(e)
+        session.rollback()
+        raise
 
 
 def create_site_json_sanity_check(request: dict):
