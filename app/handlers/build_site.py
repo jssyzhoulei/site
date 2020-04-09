@@ -39,6 +39,7 @@ from app.models import (
     ElevatorFloor,
     FloorFacility,
     SiteGroup,
+    Robot,
     Unit,
     session,
 )
@@ -102,6 +103,7 @@ def bootstrap_site(site: Site):
     """
     meta_info = site.meta_info
     assert meta_info["building_count"] == len(meta_info["building_info"])
+    _bootstrap_robot(site, meta_info.get("robot_count") or 0)
     for idx, building_info in enumerate(meta_info["building_info"]):
         building = None
         building_uuid = building_info.get("uuid")
@@ -348,9 +350,7 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
             .count()
             or 0
         )
-        should_extend_facility = (
-                facility_count - facility_count_before
-        )
+        should_extend_facility = facility_count - facility_count_before
         if should_extend_facility > 0:
             facility_group_count = (
                 session.query(SiteGroup)
@@ -361,7 +361,7 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
                 .count()
                 or 0
             )
-            group_name = f"{building.name}(默认){facility_name_map[facility_type]}组：{facility_group_count + 1}"
+            group_name = f"{building.name}(默认){facility_name_map[facility_type]}组：[{facility_group_count + 1}]"
             new_facilities = []
 
             facility_group = _bootstrap_group(
@@ -405,6 +405,44 @@ def _bootstrap_floor_facility(site_uuid: UUID, building: Building, building_info
     return
 
 
+def _bootstrap_robot(site: Site, robot_count: int):
+
+    robot_count_before = (
+        session.query(Robot).filter(Robot.site_uuid == site.uuid).count() or 0
+    )
+    should_extend_robot = robot_count - robot_count_before
+    if should_extend_robot > 0:
+        facility_group_count = (
+            session.query(SiteGroup)
+            .filter(
+                SiteGroup.site_uuid == site.uuid,
+                SiteGroup.unit_type == Unit.UNIT_TYPE_ROBOT,
+            )
+            .count()
+            or 0
+        )
+        group_name = f"{site.name}(默认)机器人组：[{facility_group_count + 1}]"
+        new_facilities = []
+
+        facility_group = _bootstrap_group(
+            site.uuid, None, None, group_name, Unit.UNIT_TYPE_ROBOT, 0
+        )
+        session.add(facility_group)
+        session.flush()
+        for idx in range(should_extend_robot):
+            facility_name = f"{group_name}#robot{idx+1}号"
+            robot = _new_robot(site.uuid, facility_group.uuid, facility_name)
+            session.add(robot)
+            session.flush()
+            new_facilities.append(str(robot.uuid))
+
+        facility_group.members = new_facilities
+
+        session.flush()
+
+    return
+
+
 def _new_floor_facility(
     site_uuid: UUID, building_uuid: UUID, group_uuid: UUID, unit_type: int, name: str
 ):
@@ -418,6 +456,13 @@ def _new_floor_facility(
     session.add(facility)
     session.flush()
     return facility
+
+
+def _new_robot(site_uuid: UUID, group_uuid: UUID, name: str):
+    robot = Robot(name=name, site_uuid=site_uuid, group_uuid=group_uuid)
+    session.add(robot)
+    session.flush()
+    return robot
 
 
 def force_cleanup_site(site_uuid: UUID) -> None:
