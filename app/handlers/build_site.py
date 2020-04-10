@@ -39,6 +39,7 @@ from app.models import (
     ElevatorFloor,
     FloorFacility,
     SiteGroup,
+    SiteFacilityUnit,
     Robot,
     Unit,
     session,
@@ -224,6 +225,10 @@ def bootstrap_site(site: Site):
             session.flush()
 
         _bootstrap_floor_facility(site.uuid, building, building_info)
+    # 最后创建unit数据
+    session.flush()
+    _bootstrap_facility_unit(site)
+    flush_group_index(site.uuid)
 
 
 def _bootstrap_building_floor(
@@ -465,6 +470,129 @@ def _new_robot(site_uuid: UUID, group_uuid: UUID, name: str):
     return robot
 
 
+def _bootstrap_facility_unit(site: Site):
+    """
+    创建facility绑定关系
+    site facility unit 记录各个坑位（机器人、elevator、facility）内的设备是否就位（绑定or进坑）
+    生成site数据的时候默认生成facility绑定数据
+    只是此时尚未绑定iot、robot等设备
+    即每一行的unit uid、  unit uuid、 unit name为空
+    unit表内同时记录着各种facility的sid  所有facility（在三张表内floor_facility、elevator、robot）
+    同时也记录每个facility在组内的index（从1开始计数）
+    """
+    # 创建电梯绑定关系
+    site_uuid = site.uuid
+    site_uid = site.site_uid
+    facility_sid = _gen_facility_sid(site_uuid)
+
+    current_sfus = (
+        session.query(SiteFacilityUnit.facility_uuid)
+        .filter(SiteFacilityUnit.site_uuid == site_uuid)
+        .all()
+    )
+    current_sfus = [i[0] for i in current_sfus]
+    elevators = (
+        session.query(Elevator)
+        .filter(Elevator.site_uuid == site_uuid, Elevator.uuid.notin_(current_sfus))
+        .all()
+    )
+    # todo 后续优化批量新增 bulk_insert_mappings
+    for ele in elevators:
+        new_facility_unit(
+            site_uuid,
+            site_uid,
+            ele.group_uuid,
+            ele.uuid,
+            Unit.UNIT_TYPE_ELEVATOR,
+            facility_sid,
+        )
+        facility_sid += 1
+
+    # robot绑定关系
+    robots = (
+        session.query(Robot)
+        .filter(Robot.site_uuid == site_uuid, Robot.uuid.notin_(current_sfus))
+        .all()
+    )
+    for r in robots:
+        new_facility_unit(
+            site_uuid,
+            site_uid,
+            r.group_uuid,
+            r.uuid,
+            Unit.UNIT_TYPE_ROBOT,
+            facility_sid,
+        )
+        facility_sid += 1
+
+    facilities = (
+        session.query(FloorFacility)
+        .filter(
+            FloorFacility.site_uuid == site_uuid,
+            FloorFacility.uuid.notin_(current_sfus),
+        )
+        .all()
+    )
+    for f in facilities:
+        new_facility_unit(
+            site_uuid, site_uid, f.group_uuid, f.uuid, f.unit_type, facility_sid
+        )
+        facility_sid += 1
+
+
+def _gen_facility_sid(site_uuid: UUID):
+    max_facility_sid = (
+        session.query(func.max(SiteFacilityUnit.facility_sid))
+        .filter(SiteFacilityUnit.site_uuid == site_uuid)
+        .scalar()
+        or 0
+    )
+    return max_facility_sid + 1
+
+
+def new_facility_unit(
+    site_uuid: UUID,
+    site_uid: int,
+    group_uuid: UUID,
+    facility_uuid: UUID,
+    unit_type: int,
+    facility_sid: int,
+):
+    sfu = SiteFacilityUnit(
+        site_uid=site_uid,
+        site_uuid=site_uuid,
+        facility_uuid=facility_uuid,
+        unit_type=unit_type,
+        facility_sid=facility_sid or _gen_facility_sid(site_uuid),
+        group_uuid=group_uuid,
+    )
+    session.add(sfu)
+    session.flush()
+    return sfu
+
+
+# 刷新facility unit group index
+def flush_group_index(site_uuid: UUID):
+    # 每次新增或更新facility unit的时候 都要重新更新组内的index编号（编号顺序没有要求）
+    group_uuid_site_unit_dict = {}
+    sfus = (
+        session.query(SiteFacilityUnit)
+        .filter(SiteFacilityUnit.site_uuid == site_uuid)
+        .all()
+    )
+    for sfu in sfus:
+        if str(sfu.group_uuid) in group_uuid_site_unit_dict:
+            group_uuid_site_unit_dict[str(sfu.group_uuid)].append(sfu)
+        else:
+            group_uuid_site_unit_dict[str(sfu.group_uuid)] = [sfu]
+
+    for _, group_site_info in group_uuid_site_unit_dict.items():
+        for i, sfu in enumerate(group_site_info):
+            sfu.facility_group_index = i + 1
+
+    session.flush()
+
+
 def force_cleanup_site(site_uuid: UUID) -> None:
     logger.warning(f"delete site related rows for site_uuid={str(site_uuid)}")
 
@@ -491,10 +619,12 @@ def force_cleanup_site(site_uuid: UUID) -> None:
     session.query(SiteGroup).filter(SiteGroup.site_uuid == site_uuid).delete(
         synchronize_session=False
     )
-    # session.query(SiteFacilityUnit).filter(
-    #     SiteFacilityUnit.site_uuid == site_uuid
-    # ).delete(synchronize_session=False)
-    # session.query(Robot).filter(Robot.site_uuid == site_uuid).delete(synchronize_session=False)
+    session.query(SiteFacilityUnit).filter(
+        SiteFacilityUnit.site_uuid == site_uuid
+    ).delete(synchronize_session=False)
+    session.query(Robot).filter(Robot.site_uuid == site_uuid).delete(
+        synchronize_session=False
+    )
 
     try:
         session.commit()
