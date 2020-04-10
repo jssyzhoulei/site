@@ -141,6 +141,9 @@ def bootstrap_site(site: Site):
     meta_info = site.meta_info
     assert meta_info["building_count"] == len(meta_info["building_info"])
     _bootstrap_robot(site, meta_info.get("robot_count") or 0)
+    current_building_count = (
+        session.query(Building).filter(Building.site_uuid == site.uuid).count()
+    )
     for idx, building_info in enumerate(meta_info["building_info"]):
         building = None
         building_uuid = building_info.get("uuid")
@@ -151,8 +154,9 @@ def bootstrap_site(site: Site):
                 building.name = building_info.get("name")
         if building is None:
             # 创建building
+            index = current_building_count + idx + 1
             building = Building(
-                name=building_info.get("name") or f"{site.name}#{idx + 1}号楼",
+                name=building_info.get("name") or f"{site.name}#{index}号楼",
                 site_uuid=site.uuid,
             )
             session.add(building)
