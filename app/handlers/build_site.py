@@ -85,6 +85,38 @@ def create_site(request: dict):
         raise
 
 
+def update_site(request: dict):
+
+    uuid = request.get("uuid")
+    site = session.query(Site).get(uuid)
+    # site name sanity unique  检测
+    site.name = request["name"]
+    site.address = request["address"]
+    site.status = request["status"]
+    site.has_building_connector = request["has_building_connector"]
+    site.business_types = request["business_types"]
+    site.location = request["location"]
+    site.meta_info = request["meta_info"]
+
+    # flush to get site uuid
+    session.flush()
+    bootstrap_site(site)
+
+    try:
+
+        session.commit()
+    except Exception as e:
+        logger.error(e)
+        session.rollback()
+        raise
+
+    logger.info(
+        "[API.SECTION_UPDATE] update_section_site(site_uuid={}, section_info={})".format(
+            site.uuid, site.meta_info
+        )
+    )
+
+
 def bootstrap_site(site: Site):
     """
     根据统计信息创建楼宇
@@ -102,6 +134,10 @@ def bootstrap_site(site: Site):
                                "charger_count": 9}],
         }
     """
+
+    logger.info(
+        "bootstrapping site {} with info => {}".format(site.uuid, site.meta_info)
+    )
     meta_info = site.meta_info
     assert meta_info["building_count"] == len(meta_info["building_info"])
     _bootstrap_robot(site, meta_info.get("robot_count") or 0)
