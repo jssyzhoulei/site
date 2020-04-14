@@ -39,13 +39,22 @@ class DevConfig(BaseDevConfig):
     pass
 
 
-class ProConfig(object):
+class ProConfig(BaseDevConfig):
     # 系统正式部署时根据自己的需要的一些配置,例如mysql配置，redis配置等等，
     pass
 
 
-config = {
-    "dev": DevConfig,
-    # 'tst': TestingConfig,
-    "prd": ProConfig,
-}
+class TestingConfig(BaseDevConfig):
+    # 测试环境setting
+    db = os.environ.get("DB_NAME", "site")
+
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_timeout": 10, "pool_size": 50}
+
+    TESTING = True
+    s = BaseDevConfig
+
+    con_str = f"postgresql+psycopg2://{s.user}:{s.pwd}@{s.host}:{s.port}/{db}?client_encoding=utf8"
+    SQLALCHEMY_DATABASE_URI = con_str
+
+
+config = {"dev": DevConfig, "test": TestingConfig, "prd": ProConfig}

@@ -29,6 +29,21 @@ def import_migrate_models():
     )
 
 
+class CreateApp(object):
+    def __init__(self):
+        self.db = db
+
+    def create_app(self, config_name: str):
+        # 实例化实现了wsgi接口功能的flask对象
+        app = Flask(__name__)
+        app.config.from_object(config[config_name])
+        import_migrate_models()
+        api = Api(app)
+        self.db.init_app(app)
+        register_site_api(api)
+        return app
+
+
 def create_app(config_name: str):
     # 实例化实现了wsgi接口功能的flask对象
     app = Flask(__name__)
