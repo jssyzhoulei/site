@@ -7,7 +7,7 @@ import pytest
 from app import CreateApp
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def client():
     cls = CreateApp()
     app = cls.create_app("test")

@@ -10,11 +10,12 @@ logger = logging.getLogger()
 def parse_site(site: Site):
     return {
         "site_uid": site.site_uid,
-        "uuid": site.uuid,
+        "uuid": str(site.uuid),
         "name": site.name,
         "address": site.address,
         "business_types": site.business_types,
         "location": site.location,
+        "meta_info": site.meta_info,
     }
 
 
@@ -35,7 +36,7 @@ class SiteView(Resource):
     def post(self):
         data = request.get_json()
         if data is None:
-            return {"": ""}
+            return {"msg": "没有请求数据"}
 
         create_site(data)
         return {"msg": "success"}

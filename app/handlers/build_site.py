@@ -144,6 +144,8 @@ def bootstrap_site(site: Site):
     current_building_count = (
         session.query(Building).filter(Building.site_uuid == site.uuid).count()
     )
+    # site缓存
+    site_building_info = []
     for idx, building_info in enumerate(meta_info["building_info"]):
         building = None
         building_uuid = building_info.get("uuid")
@@ -265,6 +267,24 @@ def bootstrap_site(site: Site):
             session.flush()
 
         _bootstrap_floor_facility(site.uuid, building, building_info)
+        site_building_info.append(
+            {
+                "name": building.name,
+                "uuid": str(building.uuid),
+                "floor_count": len(building.building_floors),
+                "elevator_count": len(building.elevators),
+                "station_count": len(building.stations),
+                "gate_count": len(building.gates),
+                "auto_door_count": len(building.auto_doors),
+                "charger_count": len(building.chargers),
+            }
+        )
+
+    site.meta_info = {
+        "building_count": site.meta_info["building_count"],
+        "robot_count": site.meta_info["robot_count"],
+        "building_info": site_building_info,
+    }
     # 最后创建unit数据
     session.flush()
     _bootstrap_facility_unit(site)
