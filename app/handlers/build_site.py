@@ -166,7 +166,7 @@ def bootstrap_site(site: Site):
 
         # building 内是否需要扩展楼层
         # 羃等 创建时 building_floor_count 为0  更新时不为0
-        should_extend_floor = building_info.get("floor_count") or 0 - len(
+        should_extend_floor = building_info.get("floor_count") - len(
             building.building_floors
         )
 
@@ -218,7 +218,7 @@ def bootstrap_site(site: Site):
         session.flush()
 
         # 是否需要扩展电梯
-        should_extend_elevator = building_info.get("elevator_count") or 0 - len(
+        should_extend_elevator = building_info.get("elevator_count") - len(
             building.elevators
         )
         # 新增电梯略复杂  需要创建电梯组  如果此前已经有电梯组  是否新建或沿用旧的电梯组

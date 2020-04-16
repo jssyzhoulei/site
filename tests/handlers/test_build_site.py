@@ -190,3 +190,26 @@ def test_update_site(client):
         charset="UTF-8",
     )
     assert rsp.get_json() == {"msg": "success"}
+
+    site_group_count = session.query(SiteGroup).count()
+    site = client.get("/sites?name=上海大厦")
+    site_info = site.get_json()[0]
+
+    site_info["meta_info"]["building_info"][0]["station_count"] = 2
+    site_info["meta_info"]["building_info"][0]["floor_count"] = 9
+    rsp = client.put(
+        "/site",
+        data=json.dumps(
+            site_info
+        ),
+        content_type="application/json",
+        charset="UTF-8",
+    )
+    assert rsp.get_json() == {"msg": "success"}
+    site_group_count_after = session.query(SiteGroup).count()
+    # 分组变化
+    assert site_group_count == site_group_count_after -1
+
+    elevators = session.query(Elevator).all()
+    for ele in elevators:
+        assert len(ele.elevator_floors) == 9
