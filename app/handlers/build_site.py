@@ -340,6 +340,7 @@ def _bootstrap_group(
     name: str,
     unit_type: int,
     facility_group_sid: int,
+    members: list = [],
 ):
     group = SiteGroup(
         name=name,
@@ -349,6 +350,7 @@ def _bootstrap_group(
         unit_type=unit_type,
         # todo 单元测试要检测同一站点下sid是否会重复
         facility_group_sid=facility_group_sid or _gen_group_sid(site_uuid),
+        members=members,
     )
     session.add(group)
     session.flush()
