@@ -1,4 +1,5 @@
 import logging
+from itertools import chain
 from uuid import UUID
 from typing import Optional
 from sqlalchemy import func
@@ -72,7 +73,22 @@ def update_site_building(site_uuid: UUID, site_building: dict):
         raise
 
     buildings = site_building["buildings"]
+    for build in buildings:
+        _update_building(site_uuid, build)
     robot_groups = site_building["robot_groups"]
+    robot_groups_db = (
+        session.query(SiteGroup)
+        .filter(
+            SiteGroup.unit_type == Unit.UNIT_TYPE_ROBOT,
+            SiteGroup.site_uuid == site_uuid,
+        )
+        .all()
+    )
+    groups_db_map = {str(i): i for i in robot_groups_db}
+    # 更新robot组
+    _update_facility_group(robot_groups, groups_db_map, site_uuid)
+    # 刷新facility分组下标
+    flush_group_index(site_uuid)
 
     try:
         session.commit()
@@ -86,7 +102,7 @@ def update_site_building(site_uuid: UUID, site_building: dict):
     )
 
 
-def update_building(site_uuid: UUID, building: dict):
+def _update_building(site_uuid: UUID, building: dict):
     """
     "building_floors": self.get_building_floors_info(),
     "elevators": self.get_elevators_info(),
@@ -119,11 +135,27 @@ def update_building(site_uuid: UUID, building: dict):
     for building_floor_req in building_floor_reqs:
         building_floor = build_map[building_floor_req["uuid"]]
         building_floor.name = building_floor_req["name"]
+        if building_floor_req.get("connected_building_floor_uuid"):
+            # 创建关联楼层信息
+            _new_or_update_building_floor_connects(
+                site_uuid,
+                building_floor.uuid,
+                UUID(building_floor_req["connected_building_floor_uuid"]),
+                building_uuid,
+            )
+        else:
+            # 清除关联关系
+            clean_connects(
+                building_floor.uuid,
+                UUID(building_floor_req["connected_building_floor_uuid"]),
+            )
 
     groups_db = (
         session.query(SiteGroup).filter(SiteGroup.building_uuid == building_uuid).all()
     )
     groups_db_map = {str(i): i for i in groups_db}
+
+    # 更新其他组
     for key in [
         "elevator_groups",
         "charger_groups",
@@ -144,13 +176,63 @@ def _update_elevator_floors(elevator_uuid: UUID, ele_floors: list):
         ele_floor.name = ele_floor_req["name"]
         if ele_floor_req["name"] != "-":
             ele_floor.is_reachable = True
-        if ele_floor_req.get("building_floor_uuid"):
-            # 创建关联楼层信息
-            pass
 
 
-def _update_robot_group(site_uuid: UUID, robot_groups: dict):
-    pass
+def _new_or_update_building_floor_connects(
+    site_uuid: UUID, floor_uuid1: UUID, floor_uuid2: UUID, building_uuid: UUID
+):
+    # 创建或者更新building floor connects
+    building_floor2 = (
+        session.query(BuildingFloor)
+        .filter(BuildingFloor.site_uuid == site_uuid, BuildingFloor.uuid == floor_uuid2)
+        .scalar()
+    )
+    # floor_uuid1  默认不做校验
+    if building_floor2 is None:
+        # 联通楼宇floor uuid错误
+        raise
+    if str(building_floor2.building_uuid) == str(building_uuid):
+        # 联通了同一栋楼宇
+        raise
+    if BuildingFloorConnector.is_floor_connect_exist(floor_uuid1, floor_uuid2):
+        # 联通关系已经存在
+        return
+    # 如果此前floor uuid 1 有其他 联通楼层  则替换掉
+    connect = (
+        session.query(BuildingFloorConnector)
+        .filter(
+            BuildingFloorConnector.floor_uuid_1 == floor_uuid1,
+            BuildingFloorConnector.is_delete == 0,
+        )
+        .scalar()
+    )
+    if connect:
+        connect.floor_uuid_2 = floor_uuid2
+    else:
+        connect = BuildingFloorConnector(
+            site_uuid=site_uuid,
+            building_uuid_1=building_uuid,
+            floor_uuid_1=floor_uuid1,
+            building_uuid_2=building_floor2.building_uuid,
+            floor_uuid_2=floor_uuid2,
+        )
+        session.add(connect)
+        session.flush()
+
+
+def clean_connects(floor_uuid1: UUID, floor_uuid2: UUID):
+    # 清除联通关系
+    connect = (
+        session.query(BuildingFloorConnector)
+        .filter(
+            BuildingFloorConnector.floor_uuid_1 == floor_uuid1,
+            BuildingFloorConnector.floor_uuid_2 == floor_uuid2,
+        )
+        .scalar()
+    )
+    if connect:
+        connect.is_delete = 1
+    session.flush()
 
 
 def _update_facility_group(
@@ -163,17 +245,19 @@ def _update_facility_group(
     # 组内数据members可以移动 所以要刷新group index
     # 分组数据比较特别 可以更新分组  也可以新增分组 但是不允许新增空的分组
     # 允许把已有的分组members全部挪到别的分组去（这种方式产生空的分组  是被允许的）
-    """
-    "uuid": str(self.uuid),
-    "name": self.name,
-    "building_floor_uuid": str(self.building_floor_uuid or ""),
-    "unit_type": self.unit_type,
-    "members"
-    """
+    unit_type = groups[0]["unit_type"]
     if not groups:
         return
 
-    unit_type = groups[0]["unit_type"]
+    old_members = []
+    for _, groups_db in groups_db_map.items():
+        if groups_db.unit_type == unit_type:
+            old_members.extend(groups_db.members)
+
+    new_members = chain(i.members for i in groups)
+    if set(old_members) != set(new_members):
+        raise
+
     for group in groups:
         # todo 验证mebers uuid类型
         group_member_list = [i["uuid"] for i in group["members"]]
@@ -201,7 +285,7 @@ def _update_facility_group(
                 group["name"],
                 unit_type,
                 0,
-                group_member_list
+                group_member_list,
             )
 
         # update site_facility_unit
@@ -224,5 +308,5 @@ def _update_facility_group(
                 # elevator 只修改分组信息
                 members_db.name = member["name"]
                 members_db.direction = member["direction"]
-                members_db.building_uuid = group.get("building_uuid")
+                # members_db.building_uuid = group.get("building_uuid")
                 members_db.building_floor_uuid = group.get("building_floor_uuid")
