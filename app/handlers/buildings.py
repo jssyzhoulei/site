@@ -103,15 +103,7 @@ def update_site_building(site_uuid: UUID, site_building: dict):
 
 
 def _update_building(site_uuid: UUID, building: dict):
-    """
-    "building_floors": self.get_building_floors_info(),
-    "elevators": self.get_elevators_info(),
-    "elevator_groups": self.get_elevator_group(),
-    "charger_groups": self.get_charger_info(),
-    "station_groups": self.get_station_info(),
-    "auto_door_groups": self.get_auto_door_info(),
-    "gate_groups":
-    """
+
     building_uuid = building["uuid"]
     building_db = session.query(Building).get(building_uuid)
     elevators = (
@@ -227,6 +219,7 @@ def clean_connects(floor_uuid1: UUID, floor_uuid2: UUID):
         .filter(
             BuildingFloorConnector.floor_uuid_1 == floor_uuid1,
             BuildingFloorConnector.floor_uuid_2 == floor_uuid2,
+            BuildingFloorConnector.is_delete == 0,
         )
         .scalar()
     )
@@ -259,7 +252,6 @@ def _update_facility_group(
         raise
 
     for group in groups:
-        # todo 验证mebers uuid类型
         group_member_list = [i["uuid"] for i in group["members"]]
         cls = FloorFacility
         if unit_type == Unit.UNIT_TYPE_ROBOT:
