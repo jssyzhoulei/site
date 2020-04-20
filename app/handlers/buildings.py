@@ -84,7 +84,7 @@ def update_site_building(site_uuid: UUID, site_building: dict):
         )
         .all()
     )
-    groups_db_map = {str(i): i for i in robot_groups_db}
+    groups_db_map = {str(i.uuid): i for i in robot_groups_db}
     # 更新robot组
     _update_facility_group(robot_groups, groups_db_map, site_uuid)
     # 刷新facility分组下标
@@ -106,6 +106,9 @@ def _update_building(site_uuid: UUID, building: dict):
 
     building_uuid = building["uuid"]
     building_db = session.query(Building).get(building_uuid)
+
+    building_db.name = building["name"]
+    building_db.address = building["address"]
     elevators = (
         session.query(Elevator).filter(Elevator.building_uuid == building_uuid).all()
     )
@@ -137,15 +140,12 @@ def _update_building(site_uuid: UUID, building: dict):
             )
         else:
             # 清除关联关系
-            clean_connects(
-                building_floor.uuid,
-                UUID(building_floor_req["connected_building_floor_uuid"]),
-            )
+            clean_connects(building_floor.uuid)
 
     groups_db = (
         session.query(SiteGroup).filter(SiteGroup.building_uuid == building_uuid).all()
     )
-    groups_db_map = {str(i): i for i in groups_db}
+    groups_db_map = {str(i.uuid): i for i in groups_db}
 
     # 更新其他组
     for key in [
@@ -162,7 +162,7 @@ def _update_elevator_floors(elevator_uuid: UUID, ele_floors: list):
     elevator_floors = session.query(ElevatorFloor).filter(
         ElevatorFloor.elevator_uuid == elevator_uuid
     )
-    ele_floor_map = {str(i): i for i in elevator_floors}
+    ele_floor_map = {str(i.uuid): i for i in elevator_floors}
     for ele_floor_req in ele_floors:
         ele_floor = ele_floor_map[ele_floor_req["uuid"]]
         ele_floor.name = ele_floor_req["name"]
@@ -212,15 +212,15 @@ def _new_or_update_building_floor_connects(
         session.flush()
 
 
-def clean_connects(floor_uuid1: UUID, floor_uuid2: UUID):
+def clean_connects(floor_uuid1: UUID):
     # 清除联通关系
     connect = (
         session.query(BuildingFloorConnector)
         .filter(
             BuildingFloorConnector.floor_uuid_1 == floor_uuid1,
-            BuildingFloorConnector.floor_uuid_2 == floor_uuid2,
             BuildingFloorConnector.is_delete == 0,
         )
+        # todo 如果某一层联通了多个楼层 则此处使用scalar 会出错
         .scalar()
     )
     if connect:
@@ -247,7 +247,7 @@ def _update_facility_group(
         if groups_db.unit_type == unit_type:
             old_members.extend(groups_db.members)
 
-    new_members = chain(i.members for i in groups)
+    new_members = [j["uuid"] for j in chain(*[i["members"] for i in groups])]
     if set(old_members) != set(new_members):
         raise
 
@@ -259,13 +259,13 @@ def _update_facility_group(
         if unit_type == Unit.UNIT_TYPE_ELEVATOR:
             cls = Elevator
         members_db = session.query(cls).filter(cls.uuid.in_(group_member_list)).all()
-        members_db_map = {str(i): i for i in members_db}
-        assert len(members_db) == group_member_list
+        members_db_map = {str(i.uuid): i for i in members_db}
+        assert len(members_db) == len(group_member_list)
         if group.get("uuid"):
             # 更新
             groups_db = groups_db_map[group["uuid"]]
             groups_db.name = group["name"]
-            groups_db.building_floor_uuid = group.get("building_floor_uuid")
+            groups_db.building_floor_uuid = group.get("building_floor_uuid") or None
             groups_db.members = group_member_list
 
         else:
@@ -273,7 +273,7 @@ def _update_facility_group(
             groups_db = _bootstrap_group(
                 site_uuid,
                 building_uuid,
-                group.get("building_floor_uuid"),
+                group.get("building_floor_uuid") or None,
                 group["name"],
                 unit_type,
                 0,
@@ -295,10 +295,10 @@ def _update_facility_group(
             member_db = members_db_map[member["uuid"]]
             member_db.group_uuid = groups_db.uuid
             if cls == Robot:
-                members_db.name = member["name"]
+                member_db.name = member["name"]
             if cls != Elevator:
                 # elevator 只修改分组信息
-                members_db.name = member["name"]
-                members_db.direction = member["direction"]
+                member_db.name = member["name"]
+                member_db.direction = member.get("direction")
                 # members_db.building_uuid = group.get("building_uuid")
-                members_db.building_floor_uuid = group.get("building_floor_uuid")
+                member_db.building_floor_uuid = group.get("building_floor_uuid") or None
