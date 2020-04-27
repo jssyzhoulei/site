@@ -238,6 +238,7 @@ def _update_facility_group(
     # 组内数据members可以移动 所以要刷新group index
     # 分组数据比较特别 可以更新分组  也可以新增分组 但是不允许新增空的分组
     # 允许把已有的分组members全部挪到别的分组去（这种方式产生空的分组  是被允许的）
+    # 可以创建新的分组 不带uuid即可 新增组的members不可为空
     unit_type = groups[0]["unit_type"]
     if not groups:
         return

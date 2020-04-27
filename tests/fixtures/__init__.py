@@ -1,1 +1,1 @@
-from tests.fixtures.models import client
+from tests.fixtures.models import *
