@@ -63,3 +63,8 @@ def connect_site(client):
     yield
     s = session.query(Site).first()
     force_cleanup_site(s.uuid)
+
+
+@pytest.fixture(scope="function")
+def fake_site():
+    return session.query(Site).first()

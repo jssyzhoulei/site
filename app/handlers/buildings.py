@@ -250,6 +250,7 @@ def _update_facility_group(
 
     new_members = [j["uuid"] for j in chain(*[i["members"] for i in groups])]
     if set(old_members) != set(new_members):
+        logger.error(f"组成员前后不一致old_members{old_members}， new_members：{new_members}， unit_type:{unit_type}")
         raise
 
     for group in groups:
@@ -261,7 +262,14 @@ def _update_facility_group(
             cls = Elevator
         members_db = session.query(cls).filter(cls.uuid.in_(group_member_list)).all()
         members_db_map = {str(i.uuid): i for i in members_db}
-        assert len(members_db) == len(group_member_list)
+
+        assert len(members_db) == len(group_member_list), "members uuid  错误"
+        if group.get("building_floor_uuid"):
+            bf: BuildingFloor = BuildingFloor.get_by_uuid(
+                UUID(group["building_floor_uuid"])
+            )
+            if not bf:
+                raise
         if group.get("uuid"):
             # 更新
             groups_db = groups_db_map[group["uuid"]]
@@ -270,7 +278,10 @@ def _update_facility_group(
             groups_db.members = group_member_list
 
         else:
-            # 新增
+            # 新增 不可新增空members group
+            if not group_member_list:
+                raise
+
             groups_db = _bootstrap_group(
                 site_uuid,
                 building_uuid,
