@@ -282,9 +282,7 @@ def test_update_robot_site_group_7(connect_site, fake_site):
     assert False, "robot_group 传入随机新的 member uuid，没有报错！"
 
 
-def test_update_elevator_site_group_1(
-    connect_site, fake_site
-):
+def test_update_elevator_site_group_1(connect_site, fake_site):
     """
     测试修改电梯组
 
@@ -311,9 +309,7 @@ def test_update_elevator_site_group_1(
     )
 
 
-def test_update_elevator_site_group_3(
-        connect_site, fake_site
-):
+def test_update_elevator_site_group_3(connect_site, fake_site):
     """
     测试修改电梯组
 
@@ -331,9 +327,7 @@ def test_update_elevator_site_group_3(
     assert building.groups[0] == res_building.groups[0]
 
 
-def test_update_elevator_site_group_4(
-    connect_site, fake_site
-):
+def test_update_elevator_site_group_4(connect_site, fake_site):
     """
     测试修改电梯组
 
@@ -353,9 +347,7 @@ def test_update_elevator_site_group_4(
     assert building.groups[0] == res_building.groups[0]
 
 
-def test_update_elevator_site_group_7(
-        connect_site, fake_site
-):
+def test_update_elevator_site_group_7(connect_site, fake_site):
     """
     测试修改电梯组
 
@@ -377,9 +369,7 @@ def test_update_elevator_site_group_7(
     )
 
 
-def test_update_floor_facility_site_group_1(
-    connect_site, fake_site
-):
+def test_update_floor_facility_site_group_1(connect_site, fake_site):
     """
     测试修改楼层设施组
 
@@ -406,9 +396,7 @@ def test_update_floor_facility_site_group_1(
     )
 
 
-def test_update_floor_facility_site_group_2(
-    connect_site, fake_site
-):
+def test_update_floor_facility_site_group_2(connect_site, fake_site):
     """
     测试修改楼层设施组
 
@@ -431,9 +419,7 @@ def test_update_floor_facility_site_group_2(
     )
 
 
-def test_update_floor_facility_site_group_3(
-    connect_site, fake_site
-):
+def test_update_floor_facility_site_group_3(connect_site, fake_site):
     """
     测试修改楼层设施组
 
@@ -455,9 +441,7 @@ def test_update_floor_facility_site_group_3(
     assert building.groups[0] == res_building.groups[0]
 
 
-def test_update_floor_facility_site_group_4(
-    connect_site, fake_site
-):
+def test_update_floor_facility_site_group_4(connect_site, fake_site):
     """
     测试修改楼层设施组
 
@@ -475,9 +459,7 @@ def test_update_floor_facility_site_group_4(
     assert building.groups[0] == res_building.groups[0]
 
 
-def test_update_floor_facility_site_group_5(
-    connect_site, fake_site
-):
+def test_update_floor_facility_site_group_5(connect_site, fake_site):
     """
     测试修改楼层设施组
 
@@ -495,9 +477,7 @@ def test_update_floor_facility_site_group_5(
     assert building.groups[0] == res_building.groups[0]
 
 
-def test_update_floor_facility_floor_1(
-    connect_site, fake_site
-):
+def test_update_floor_facility_floor_1(connect_site, fake_site):
     """
     测试修改楼层设施组的楼层
 
@@ -507,16 +487,18 @@ def test_update_floor_facility_floor_1(
     meta_info = fake_site.meta_info
     meta_info["building_info"][0]["floor_count"] += 1
 
-    update_site({
-        "uuid": fake_site.uuid,
-        "name": fake_site.name,
-        "address": fake_site.address,
-        "status": fake_site.status,
-        "has_building_connector": fake_site.has_building_connector,
-        "business_types": fake_site.business_types,
-        "location": fake_site.location,
-        "meta_info": meta_info,
-    })
+    update_site(
+        {
+            "uuid": fake_site.uuid,
+            "name": fake_site.name,
+            "address": fake_site.address,
+            "status": fake_site.status,
+            "has_building_connector": fake_site.has_building_connector,
+            "business_types": fake_site.business_types,
+            "location": fake_site.location,
+            "meta_info": meta_info,
+        }
+    )
 
     site_info = get_site_building(fake_site.uuid)
     building = BuildingInfo(site_info["buildings"][0], Unit.UNIT_TYPE_CHARGER)
@@ -525,7 +507,9 @@ def test_update_floor_facility_floor_1(
     update_site_building(fake_site.uuid, site_info)
     section_building = get_site_building(fake_site.uuid)
 
-    res_building = BuildingInfo(section_building["buildings"][0], Unit.UNIT_TYPE_CHARGER)
+    res_building = BuildingInfo(
+        section_building["buildings"][0], Unit.UNIT_TYPE_CHARGER
+    )
     for member in res_building.groups[0]["members"]:
         assert (
             str(FloorFacility.get_by_uuid(member["uuid"]).building_floor_uuid)
@@ -533,9 +517,7 @@ def test_update_floor_facility_floor_1(
         ), "修改楼层设施组到新的楼层后， 组内member的楼层没跟着变！"
 
 
-def test_update_floor_facility_floor_2(
-    connect_site, fake_site
-):
+def test_update_floor_facility_floor_2(connect_site, fake_site):
     """
     测试修改楼层设施组的楼层
 
@@ -553,9 +535,7 @@ def test_update_floor_facility_floor_2(
     assert False, "修改楼层设施组到不存在的楼层, 没有报错"
 
 
-def test_update_site_group_building_floor_uuid(
-    connect_site, fake_site
-):
+def test_update_site_group_building_floor_uuid(connect_site, fake_site):
     """
     测试组以及组members添加  building_floor_uuid
     以及 building_floor_uuid 不对齐情况
@@ -572,8 +552,7 @@ def test_update_site_group_building_floor_uuid(
 
     update_site_building(fake_site.uuid, site_info)
     chargers = (
-        session
-        .query(FloorFacility)
+        session.query(FloorFacility)
         .filter(FloorFacility.building_uuid == building_2_uuid)
         .filter(FloorFacility.building_floor_uuid == building_1_floor_uuid)
         .filter(FloorFacility.unit_type == Unit.UNIT_TYPE_CHARGER)
@@ -584,9 +563,7 @@ def test_update_site_group_building_floor_uuid(
     assert chargers_raw_count == len(chargers)
 
 
-def test_connect_floor(
-    connect_site, fake_site
-):
+def test_connect_floor(connect_site, fake_site):
     """
     测试楼层关联取关逻辑
     """
@@ -614,8 +591,7 @@ def test_connect_floor(
     building_1_floor_1_uuid = building_1_floor_1["uuid"]
     building_2_floor_1_uuid = building_1_floor_1["connected_building_floor_uuid"]
     exist = (
-        session
-        .query(BuildingFloorConnector)
+        session.query(BuildingFloorConnector)
         .filter(BuildingFloorConnector.floor_uuid_1 == building_1_floor_1_uuid)
         .filter(BuildingFloorConnector.floor_uuid_2 == building_2_floor_1_uuid)
         .filter(BuildingFloorConnector.is_delete == 0)
@@ -641,16 +617,18 @@ def test_get_section_building(connect_site, fake_site):
         }
     )
     meta_info["building_count"] = 3
-    update_site({
-        "uuid": fake_site.uuid,
-        "name": fake_site.name,
-        "address": fake_site.address,
-        "status": fake_site.status,
-        "has_building_connector": fake_site.has_building_connector,
-        "business_types": fake_site.business_types,
-        "location": fake_site.location,
-        "meta_info": meta_info,
-    })
+    update_site(
+        {
+            "uuid": fake_site.uuid,
+            "name": fake_site.name,
+            "address": fake_site.address,
+            "status": fake_site.status,
+            "has_building_connector": fake_site.has_building_connector,
+            "business_types": fake_site.business_types,
+            "location": fake_site.location,
+            "meta_info": meta_info,
+        }
+    )
 
     building_info = get_site_building(fake_site.uuid)
     building3 = building_info["buildings"][2]
