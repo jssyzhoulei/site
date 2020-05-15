@@ -625,3 +625,30 @@ class SiteFacilityUnit(db.Model, BaseMixIn):
     @classmethod
     def query_by_unit_uuid(cls, unit_uuid: str):
         return session.query(cls).filter(cls.unit_uuid == unit_uuid).first()
+
+
+class Cmdb(db.Model, BaseMixIn):
+    # 资产管理 包含绑定信息 绑定站点 绑定状态
+    __tablename__: str = "cmdb"
+    __table_args__: Dict[str, Any] = {"schema": "public"}
+
+    # 站点信息可空  非空则表示已绑定
+    site_uuid = db.Column(UUID(as_uuid=True))
+    site_uid = db.Column(db.BigInteger)
+
+    unit_type = db.Column(db.Integer, nullable=False)
+
+    unit_uuid = db.Column(UUID(as_uuid=True), unique=True, nullable=True)
+    unit_uid = db.Column(db.BigInteger, unique=True, nullable=True)
+    # 资产名称
+    unit_name = db.Column(db.String, nullable=True)
+
+    def get_unit_info(self):
+        return {
+            # "site_uuid": str(self.site_uuid) if self.site_uuid else self.site_uuid,
+            # "site_uid": self.site_uid,
+            "unit_type": self.unit_type,
+            "unit_uuid": str(self.unit_uuid),
+            "unit_uid": self.unit_uid,
+            "unit_name": self.unit_name,
+        }
