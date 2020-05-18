@@ -29,9 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_unbind_unit(unit_type: int, limit: int = 10, offset: int = 1) -> list:
-    from manage import make_shell_ctx
 
-    make_shell_ctx()
     # 获取所有未绑定的unit
     units = (
         session.query(Cmdb)
@@ -42,9 +40,11 @@ def get_unbind_unit(unit_type: int, limit: int = 10, offset: int = 1) -> list:
     return [i.get_unit_info() for i in units]
 
 
-def bind_cmdb_unit(site_uuid: UUID, site_uid: int, unit_uuid: UUID, unit_type: int):
+def bind_cmdb_unit(
+    site_uuid: UUID, site_uid: int, facility_uuid: UUID, unit_uuid: UUID, unit_type: int
+):
     # cmdb端加绑
-    cmdb = Cmdb.get(unit_uuid)
+    cmdb = session.query(Cmdb).filter(Cmdb.unit_uuid == unit_uuid).scalar()
     if not cmdb:
         # 绑定iot不存在
         raise
@@ -54,18 +54,20 @@ def bind_cmdb_unit(site_uuid: UUID, site_uid: int, unit_uuid: UUID, unit_type: i
 
     cmdb.site_uuid = site_uuid
     cmdb.site_uid = site_uid
+    cmdb.facility_uuid = facility_uuid
     session.flush()
 
 
 def unbind_cmdb_unit(unit_uuid: UUID):
     # cmdb端解绑
-    cmdb = Cmdb.get(unit_uuid)
+    cmdb = session.query(Cmdb).filter(Cmdb.unit_uuid == unit_uuid).scalar()
     if not cmdb:
         # 绑定iot不存在
         raise
 
     cmdb.site_uuid = None
     cmdb.site_uid = 0
+    cmdb.facility_uuid = None
     session.flush()
 
 
@@ -77,7 +79,7 @@ def bind_site_unit(
     force: bool = False,
 ):
     # site端加绑
-    cmdb = Cmdb.get(unit_uuid)
+    cmdb = session.query(Cmdb).filter(Cmdb.unit_uuid == unit_uuid).scalar()
     if not cmdb:
         # 绑定iot不存在
         raise
@@ -117,7 +119,7 @@ def bind_site_unit(
         raise
 
     try:
-        bind_cmdb_unit(site_uuid, site_uid, unit_uuid, new_sfu.unit_type)
+        bind_cmdb_unit(site_uuid, site_uid, facility_uuid, unit_uuid, new_sfu.unit_type)
 
         new_sfu.unit_uuid = unit_uuid
         new_sfu.unit_name = cmdb.unit_name
@@ -150,7 +152,7 @@ def unbind_site_unit(facility_uuid: UUID,):
 
         new_sfu.unit_uuid = None
         new_sfu.unit_name = ""
-        new_sfu.unit_uid = 0
+        new_sfu.unit_uid = None
         # 注意此处session没有提交
         session.flush()
     except Exception as e:
@@ -234,7 +236,7 @@ def update_bind_facility(site_uuid: UUID, new_bind_facility: list, unit_type: in
     # {"facility_uuid": "...", "unit_uuid": "..."}
     if not new_bind_facility:
         return
-    site = session.query.get(site_uuid)
+    site = session.query(Site).get(site_uuid)
     site.version_id += 1
 
     # 前端传过来的uuid  这里要求前端要把site下同building下所有同类型的facility数据传过来 后台作比较验证
@@ -245,9 +247,10 @@ def update_bind_facility(site_uuid: UUID, new_bind_facility: list, unit_type: in
         .filter(SiteFacilityUnit.facility_uuid.in_(front_facility_uuids))
         .all()
     )
+    session.flush()
     assert len(sfus) == len(set(front_facility_uuids))
 
-    # 同一个building下的facility接棒后可以再次绑定的同building下其他的facility上
+    # 同一个building下的facility解绑后可以再次绑定到同building下其他的facility上
     # 此前绑定过的组合就无需再次绑定 未绑定的组合调用绑定方法即可
     # facility_uuid, unit_uuid 组成元组  以元组为单位区分此前是否绑定过
 
@@ -295,6 +298,13 @@ def update_bind_facility(site_uuid: UUID, new_bind_facility: list, unit_type: in
             .all()
         )
         old_bind_list = [(str(i.facility_uuid), str(i.unit_uuid)) for i in binded_sfu]
+
+    facility_uuid_list = [i[0] for i in new_bind_list]
+    unit_uuid_list = [i[1] for i in new_bind_list]
+    if len(set(facility_uuid_list)) != len(set(unit_uuid_list)):
+        # 重复绑定
+        session.flush()
+        raise
 
     for old in old_bind_list:
         if old not in new_bind_list:

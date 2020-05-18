@@ -35,6 +35,7 @@ from app.models import (
     Building,
     BuildingFloor,
     BuildingFloorConnector,
+    Cmdb,
     Elevator,
     ElevatorFloor,
     FloorFacility,
@@ -687,6 +688,7 @@ def force_cleanup_site(site_uuid: UUID) -> None:
     session.query(Robot).filter(Robot.site_uuid == site_uuid).delete(
         synchronize_session=False
     )
+    session.query(Cmdb).delete(synchronize_session=False)
 
     try:
         session.commit()

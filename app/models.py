@@ -635,6 +635,8 @@ class Cmdb(db.Model, BaseMixIn):
     # 站点信息可空  非空则表示已绑定
     site_uuid = db.Column(UUID(as_uuid=True))
     site_uid = db.Column(db.BigInteger)
+    # 所绑定的站点设施
+    facility_uuid = db.Column(UUID(as_uuid=True))
 
     unit_type = db.Column(db.Integer, nullable=False)
 

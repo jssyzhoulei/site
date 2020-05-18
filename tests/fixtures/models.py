@@ -6,6 +6,7 @@ import pytest
 
 from app import CreateApp
 from app.handlers.build_site import create_site, Site, force_cleanup_site, session
+from app.script import build_random_unit
 
 
 @pytest.fixture(scope="session")
@@ -25,6 +26,7 @@ def client():
 
 @pytest.fixture(scope="function")
 def connect_site(client):
+    build_random_unit()
     create_site(
         {
             "business_types": [1],
