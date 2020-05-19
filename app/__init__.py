@@ -12,9 +12,13 @@ def register_site_api(api):
     # from app.building import building_api
     # app.register_blueprint(cms_bp)
     # api.add_resource(someView, '/some/route')
-    from app.views import SiteView, SitesView
-    api.add_resource(SiteView, '/site')
-    api.add_resource(SitesView, '/sites')
+    from app.views import SiteView, SitesView, BuildingView, UnitsView, FacilityBindView
+
+    api.add_resource(SiteView, "/site")
+    api.add_resource(SitesView, "/sites")
+    api.add_resource(BuildingView, "/building")
+    api.add_resource(UnitsView, "/units")
+    api.add_resource(FacilityBindView, "/bind")
 
 
 def import_migrate_models():
