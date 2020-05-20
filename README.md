@@ -45,6 +45,14 @@ python manage.py db migrate
 python manage.py db updgrade
 ```
 
+### Unit Test
+
+项目使用pytest作为单元测试框架
+
+当前大部分逻辑已经覆盖测试
+
+在项目根目录执行`pytest`即可
+
 ### 其他
 
 如果要调试项目中的方法
