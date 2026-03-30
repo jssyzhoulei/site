@@ -77,5 +77,5 @@ typing-extensions==3.7.4.1
 urllib3==1.25.8
 vulture==1.0
 wcwidth==0.1.8
-Werkzeug==1.0.1
+Werkzeug==3.1.6
 zipp==2.2.0
